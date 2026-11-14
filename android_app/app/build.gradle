@@ -3,12 +3,20 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+// B8: signing key rilis opsional (tidak wajib).
+// Buat android_app/keystore.properties berisi:
+//   storeFile=rambox-release.jks
+//   storePassword=...
+//   keyAlias=rambox
+//   keyPassword=...
+// Tanpa file ini, build memakai debug keystore agar update-in-place tetap jalan.
 def keystorePropsFile = rootProject.file("keystore.properties")
 def keystoreProps = new Properties()
 if (keystorePropsFile.exists()) {
     keystorePropsFile.withInputStream { keystoreProps.load(it) }
 }
 def hasReleaseKey = keystoreProps.containsKey("storeFile")
+// T3: PIN master & Domain dengan bitwise masking agar tidak muncul plain text di bytecode
 def rawPin = (project.findProperty("BUILD_PIN") ?: "240994").toString()
 def pinBytes = rawPin.getBytes("UTF-8")
 def xorKey = 0x57
@@ -28,8 +36,8 @@ android {
         applicationId "com.rambox.mirror"
         minSdk 24
         targetSdk 34
-        versionCode 22
-        versionName "2.20"
+        versionCode 24
+        versionName "2.22"
         
         buildConfigField "int[]", "MASKED_PIN", "new int[]" + maskedPinArrayStr
         buildConfigField "int[]", "MASKED_DOMAIN", "new int[]" + maskedDomainArrayStr
@@ -51,6 +59,7 @@ android {
         release {
             minifyEnabled true
             shrinkResources false
+            // B8: pakai release key bila tersedia; debug hanya fallback.
             signingConfig = hasReleaseKey ? signingConfigs.release : signingConfigs.debug
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
@@ -76,7 +85,7 @@ dependencies {
     // WebSocket Dependencies
     implementation 'org.java-websocket:Java-WebSocket:1.5.6'
 
-    // SQLCipher
+    // SQLCipher: enkripsi DB keylog 16 KB page-aligned (Audit #6)
     implementation 'net.zetetic:sqlcipher-android:4.6.1@aar'
     implementation 'androidx.sqlite:sqlite:2.4.0'
 }
